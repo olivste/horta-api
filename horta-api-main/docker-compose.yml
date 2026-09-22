@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: horta-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-horta}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-horta}
+      POSTGRES_DB: ${POSTGRES_DB:-horta_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - horta_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-horta} -d ${POSTGRES_DB:-horta_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    image: horta-api:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      network: host
+    container_name: horta-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # sobrescreve o DATABASE_URL do .env (que aponta pra localhost, usado no dev local)
+      # pra apontar pro service do postgres dentro da rede do compose
+      DATABASE_URL: postgresql://${POSTGRES_USER:-horta}:${POSTGRES_PASSWORD:-horta}@postgres:5432/${POSTGRES_DB:-horta_db}?schema=public
+    ports:
+      - "${API_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  horta_postgres_data:
